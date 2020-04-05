@@ -1,0 +1,137 @@
+---
+title: "Animated Bubble plot: novel coronavirus"
+author: "Ish Kaur"
+date: "4/4/2020"
+output: html_document
+---
+
+
+```{r warning=F, message=F, error=F}
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(plotly)
+library(gganimate)
+```
+
+
+
+```{r warning=F, message=F, error=F}
+ts_confirmed_US <-  read.csv('time_series_covid_19_confirmed_US.csv')
+ts_deaths_US <-  read.csv('time_series_covid_19_deaths_US.csv')
+```
+
+
+```{r warning=F, message=F, error=F}
+ts_death_gathered <-  ts_deaths_US %>% 
+  select(Province_State, c(13:85) ) %>% 
+  tidyr::gather(key = 'date', value = 'deaths', -Province_State) %>% 
+  group_by(Province_State, date) %>% 
+  summarise(deaths = sum(deaths)) %>% 
+  ungroup() %>% 
+  mutate(date = str_replace_all(date, 'X', '')) %>% 
+  mutate(date = str_replace_all(date, '\\.', '-')) %>% 
+  mutate(date = lubridate::mdy(date)) %>% 
+  arrange(Province_State, date) %>% 
+  mutate(date = as.Date(date)) %>% 
+  filter(date >= '2020-02-26') %>% 
+  arrange(Province_State, date)
+
+
+
+ts_confirmed_gathered <-  ts_confirmed_US %>% 
+  select(Province_State, c(12:84) ) %>% 
+  tidyr::gather(key = 'date', value = 'confirmed', -Province_State) %>% 
+  group_by(Province_State, date) %>% 
+  summarise(confirmed = sum(confirmed)) %>% 
+  ungroup() %>% 
+  mutate(date = str_replace_all(date, 'X', '')) %>% 
+  mutate(date = str_replace_all(date, '\\.', '-')) %>% 
+  mutate(date = lubridate::mdy(date)) %>% 
+  mutate(date = as.Date(date)) %>% 
+  filter(date >= '2020-02-26') %>% 
+  arrange(Province_State, date)
+
+  
+
+
+ts_us <- cbind(ts_confirmed_gathered, ts_death_gathered %>% select( 'deaths')) 
+
+glimpse(ts_us)
+```
+
+```{r warning=F, message=F, error=F}
+covid_us_plotly <- ts_us %>%
+  plot_ly(
+    x = ~deaths, 
+    y = ~confirmed, 
+    size = ~deaths, 
+    color = ~deaths, 
+    frame = ~date, 
+    text = ~Province_State, 
+    type = 'scatter',
+    mode = 'markers'
+  ) %>%
+  layout(
+    xaxis = list(
+      type = "log"
+    ),
+      yaxis = list(
+      type = "log"
+    ),
+      size = list(
+      type = "log"
+    )
+  ) %>%
+  animation_opts(
+    0.05  ) %>%
+  animation_slider(
+    currentvalue = list(prefix = "date ", font = list(color="red"))
+  )
+
+covid_us_plotly
+
+```
+
+
+
+
+```{r warning=F, error=F, message=F}
+
+covid_us_gg <- ts_us %>% 
+ ggplot(aes(confirmed, deaths,
+                 size = deaths,
+                 color = Province_State)) +
+ geom_point(show.legend = FALSE, alpha = 0.7) +
+ scale_size(range = c(5, 40)) +
+ scale_x_log10() +
+ scale_y_log10() +
+ theme_minimal( base_size = 11,
+                 base_family = 'sans') +
+ ggtitle('US states - deaths and confirmed cases')
+
+covid_us_gg
+```
+
+
+```{r warning=F, error=F, message=F}
+covid_us_gg2 <- covid_us_gg +
+  transition_time(date) +
+  labs(title = "date: {frame_time}") +
+  enter_fade() + 
+  ease_aes('linear') 
+
+covid_us_gg2
+```
+
+
+```{r warning=F, error=F, message=F}
+covid_us_gg2_shadow_mark <- covid_us_gg +
+  shadow_mark(colour = 'black', size = 0.75)  +
+  shadow_wake(wake_length = 0.1, alpha = FALSE)
+
+covid_us_gg2_shadow_mark
+```
+
+
+
